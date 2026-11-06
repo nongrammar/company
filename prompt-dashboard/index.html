@@ -1,0 +1,831 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>[hidden]{display:none!important}body{margin:0}</style>
+</head>
+<body>
+<title>프롬프트 워크벤치</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* 레이아웃: 상단 섹션 탭 → 좌측 '드랍다운 단계표' / 우측 '실시간 완성 프롬프트' 고정 패널 (모바일은 세로 스택) */
+:root{
+  --bg:#F2F5F9; --surface:#FFFFFF; --sunk:#E8EDF4; --ink:#13202F; --muted:#5A6A80; --line:#D3DCE7;
+  --accent:#1F5FD1; --accent-ink:#FFFFFF; --accent-soft:#E2EBFB; --ok:#1C8A57; --warn:#A86A12;
+  --f-body:"IBM Plex Sans KR",system-ui,-apple-system,"Apple SD Gothic Neo","Malgun Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0D131B; --surface:#151E29; --sunk:#0F1720; --ink:#E5EBF3; --muted:#93A2B6; --line:#263345;
+  --accent:#6FA3FF; --accent-ink:#0B1626; --accent-soft:#1A2A44; --ok:#4CC38A; --warn:#E0A542; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0D131B; --surface:#151E29; --sunk:#0F1720; --ink:#E5EBF3; --muted:#93A2B6; --line:#263345;
+  --accent:#6FA3FF; --accent-ink:#0B1626; --accent-soft:#1A2A44; --ok:#4CC38A; --warn:#E0A542; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:14px;line-height:1.55}
+.wrap{max-width:1320px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+header.top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:16px}
+h1{font-size:22px;margin:0;font-weight:700;letter-spacing:-.01em;text-wrap:balance}
+.sub{color:var(--muted);margin:2px 0 0;font-size:13px}
+.kbd{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
+button,select,input,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 12px;min-height:36px;font-size:13px;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.ghost{background:transparent}
+.btn.sm{padding:4px 9px;min-height:30px;font-size:12px}
+
+/* 탭 */
+nav.tabs{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin-bottom:18px;scrollbar-width:thin}
+.tab{flex:0 0 auto;border:0;background:transparent;padding:10px 14px 9px;border-bottom:2px solid transparent;color:var(--muted);display:flex;flex-direction:column;align-items:flex-start;gap:0;line-height:1.2}
+.tab b{font-weight:600;font-size:14px}
+.tab small{font-family:var(--f-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab[aria-selected="true"] small{color:var(--accent)}
+.tab.util{margin-left:auto}
+.tab.util+.tab.util{margin-left:0}
+
+.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:980px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);min-width:0}
+.panel-h{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}
+.panel-h h2{font-size:15px;margin:0;font-weight:600}
+.role{color:var(--muted);font-size:12px}
+.presets{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-bottom:1px solid var(--line);align-items:center}
+.presets .lbl{font-size:11px;letter-spacing:.06em;color:var(--muted);margin-right:4px}
+.chip-btn{border:1px dashed var(--line);background:var(--sunk);border-radius:999px;padding:3px 10px;font-size:12px}
+.chip-btn:hover{border-color:var(--accent);color:var(--accent)}
+
+/* 단계표 */
+table.steps{width:100%;border-collapse:collapse}
+.steps th{font-size:11px;letter-spacing:.06em;color:var(--muted);text-align:left;font-weight:500;padding:8px 10px;border-bottom:1px solid var(--line)}
+.steps td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+.steps tr:last-child td{border-bottom:0}
+.steps tr.group td{background:var(--sunk);font-size:11px;letter-spacing:.06em;color:var(--muted);padding:6px 10px}
+.no{width:44px;font-family:var(--f-mono);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;white-space:nowrap}
+.no i{display:inline-block;width:8px;height:8px;border-radius:50%;border:1.5px solid var(--line);margin-right:6px;vertical-align:1px}
+tr.done .no i{background:var(--ok);border-color:var(--ok)}
+tr.next .no i{background:var(--accent);border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+tr.next{background:color-mix(in srgb,var(--accent-soft) 55%,transparent)}
+tr.locked{opacity:.45}
+.fl{width:140px;font-weight:500}
+.fl .opt{display:inline-block;font-size:10px;color:var(--muted);border:1px solid var(--line);border-radius:4px;padding:0 4px;margin-left:4px;font-weight:400}
+.fl .multi{color:var(--accent);border-color:var(--accent)}
+.ctl{min-width:0}
+select.sel{width:100%;min-height:36px;border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 8px}
+select.sel:disabled{background:var(--sunk)}
+.chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:var(--accent-soft);color:var(--ink);border-radius:999px;padding:2px 4px 2px 10px;font-size:12px}
+.chip button{border:0;background:transparent;width:22px;height:22px;border-radius:50%;color:var(--muted)}
+.chip button:hover{color:var(--ink)}
+.addrow{display:flex;gap:6px;margin-top:6px}
+.addrow input{flex:1;min-width:0;border:1px solid var(--accent);border-radius:8px;padding:6px 8px;background:var(--surface)}
+.gl{width:30%;font-size:12px;color:var(--muted)}
+textarea.ta{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:8px;background:var(--surface);resize:vertical}
+@media (max-width:640px){
+  table.steps,table.steps tbody,table.steps tr,table.steps td{display:block;width:100%}
+  table.steps thead{display:none}
+  .steps tr{padding:8px 4px;border-bottom:1px solid var(--line)}
+  .steps td{border:0;padding:3px 10px}
+  .fl{width:auto}.gl{width:auto}.gl:empty{display:none}
+  .no{display:inline-block;width:auto}
+}
+
+/* 출력 */
+.out-panel{position:sticky;top:calc(env(safe-area-inset-top,0px) + 12px)}
+@media (max-width:980px){.out-panel{position:static}}
+.meter{height:4px;background:var(--sunk);border-radius:2px;overflow:hidden;flex:1;min-width:80px}
+.meter span{display:block;height:100%;background:var(--accent);transition:width .25s}
+.stat{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line);font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+textarea#out{display:block;width:100%;min-height:440px;max-height:68vh;border:0;background:var(--sunk);padding:14px;font-family:var(--f-mono);font-size:12.5px;line-height:1.65;resize:vertical;white-space:pre-wrap}
+.actions{display:flex;flex-wrap:wrap;gap:6px;padding:10px 14px;border-top:1px solid var(--line)}
+.note{font-size:11px;color:var(--muted);padding:0 14px 12px}
+
+/* 히스토리/보관함 */
+.util-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px}
+@media (max-width:980px){.util-grid{grid-template-columns:minmax(0,1fr)}}
+.pad{padding:14px}
+.pad p{margin:0 0 10px;max-width:68ch}
+.drop{border:1.5px dashed var(--line);border-radius:var(--r);padding:18px;text-align:center;color:var(--muted);background:var(--sunk)}
+.drop.over{border-color:var(--accent);color:var(--accent)}
+.list{list-style:none;margin:0;padding:0}
+.list li{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line)}
+.list li:last-child{border-bottom:0}
+.list .t{flex:1;min-width:0;overflow-wrap:anywhere}
+.cnt{font-family:var(--f-mono);font-size:11px;color:var(--muted);min-width:34px;text-align:right;font-variant-numeric:tabular-nums}
+.bar{height:6px;border-radius:3px;background:var(--accent);opacity:.75}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr) 40px;gap:8px;align-items:center;font-size:13px;padding:3px 0}
+details.src{margin-top:8px;font-size:12px;color:var(--muted)}
+details.src code{font-family:var(--f-mono);font-size:11px;background:var(--sunk);padding:1px 4px;border-radius:4px;overflow-wrap:anywhere}
+h3{font-size:13px;margin:16px 0 8px;font-weight:600}
+h3:first-child{margin-top:0}
+.empty{color:var(--muted);font-size:13px;padding:6px 0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .2s;pointer-events:none;z-index:20}
+.toast.on{opacity:1}
+.star{color:var(--warn)}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>프롬프트 워크벤치</h1>
+      <p class="sub">드랍다운을 위에서부터 차례로 고르면 각 분야 용어로 정리된 지시문이 오른쪽에 완성됩니다.</p>
+    </div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">
+      <button class="btn sm ghost" id="themeBtn" type="button">테마 전환</button>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" role="tablist"></nav>
+
+  <section id="builder" class="grid">
+    <div class="panel">
+      <div class="panel-h">
+        <h2 id="tabTitle"></h2>
+        <span class="role" id="tabRole"></span>
+      </div>
+      <div class="presets" id="presets"></div>
+      <div style="overflow-x:auto">
+        <table class="steps">
+          <thead><tr><th>단계</th><th>항목</th><th>선택</th><th>용어 설명</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+      <div class="actions">
+        <button class="btn" id="autoBtn" type="button">내 패턴으로 빈칸 채우기</button>
+        <button class="btn ghost" id="resetBtn" type="button">이 탭 초기화</button>
+      </div>
+    </div>
+
+    <div class="panel out-panel">
+      <div class="panel-h">
+        <h2>완성 프롬프트</h2>
+        <span class="kbd" id="chars">0자</span>
+      </div>
+      <div class="stat"><span id="prog">0 / 0 단계</span><div class="meter"><span id="meter" style="width:0"></span></div></div>
+      <label for="out" class="kbd" style="display:none">완성 프롬프트</label>
+      <textarea id="out" spellcheck="false"></textarea>
+      <div class="actions">
+        <button class="btn primary" id="copyBtn" type="button">복사</button>
+        <button class="btn" id="saveBtn" type="button">보관함에 저장</button>
+        <button class="btn ghost" id="regenBtn" type="button">수정 내용 버리고 다시 생성</button>
+      </div>
+      <p class="note">오른쪽 글은 직접 고쳐도 됩니다. 드랍다운을 다시 바꾸면 새로 생성됩니다.</p>
+    </div>
+  </section>
+
+  <section id="history" class="util-grid" hidden>
+    <div class="panel">
+      <div class="panel-h"><h2>히스토리 학습</h2><span class="role">VS Code·AI 채팅 기록에서 내 지시 습관 추출</span></div>
+      <div class="pad">
+        <p>내보낸 대화 기록 파일을 올리거나 붙여 넣으면, 내가 보낸 메시지만 골라 자주 쓰는 용어와 반복되는 지시 문장을 찾습니다. 분석은 이 브라우저 안에서만 이뤄지고 외부로 전송되지 않습니다.</p>
+        <div class="drop" id="drop">
+          <p style="margin:0 0 8px">파일을 여기에 끌어다 놓거나</p>
+          <label class="btn" for="fileIn" style="display:inline-block">파일 선택 (.json .jsonl .txt .md)</label>
+          <input id="fileIn" type="file" multiple accept=".json,.jsonl,.txt,.md,.csv" hidden>
+        </div>
+        <h3>또는 텍스트 붙여넣기</h3>
+        <textarea class="ta" id="pasteIn" placeholder="예) 이전에 AI에게 보낸 지시문들을 줄바꿈으로 붙여 넣으세요"></textarea>
+        <div class="actions" style="padding:10px 0 0;border:0">
+          <button class="btn primary" id="analyzeBtn" type="button">분석</button>
+          <button class="btn ghost" id="clearFreqBtn" type="button">학습 결과 지우기</button>
+        </div>
+        <details class="src">
+          <summary>기록 파일 위치 안내</summary>
+          <ul>
+            <li>Claude Code (VS Code 확장 포함): <code>~/.claude/projects/&lt;프로젝트&gt;/*.jsonl</code></li>
+            <li>VS Code Copilot Chat: <code>%APPDATA%\Code\User\workspaceStorage\&lt;id&gt;\chatSessions\*.json</code></li>
+            <li>Claude.ai: 설정 → 개인정보 → 데이터 내보내기 → <code>conversations.json</code></li>
+            <li>ChatGPT: 설정 → 데이터 제어 → 내보내기 → <code>conversations.json</code></li>
+            <li>Gemini: Google 테이크아웃 → 내 활동 → Gemini 앱 → <code>MyActivity.json</code></li>
+          </ul>
+        </details>
+        <div id="anaSummary" class="empty" style="margin-top:10px">아직 분석한 기록이 없습니다.</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>나의 기본 규칙</h2><span class="role">켜 둔 규칙은 모든 프롬프트 끝에 붙습니다</span></div>
+      <div class="pad">
+        <ul class="list" id="ruleList"></ul>
+        <div class="addrow"><input id="ruleIn" placeholder="새 규칙 입력 후 추가"><button class="btn sm" id="ruleAdd" type="button">추가</button></div>
+        <h3>기록에서 찾은 반복 지시</h3>
+        <ul class="list" id="patList"><li class="empty">분석 후 표시됩니다. ‘규칙으로’를 누르면 위 목록에 들어갑니다.</li></ul>
+        <h3>자주 쓴 용어</h3>
+        <div id="termList" class="empty">분석 후 표시됩니다. 자주 쓴 선택지는 드랍다운 맨 위에 ★로 올라옵니다.</div>
+      </div>
+    </div>
+  </section>
+
+  <section id="vault" class="util-grid" hidden>
+    <div class="panel">
+      <div class="panel-h"><h2>보관함</h2><span class="role" id="vaultCount"></span></div>
+      <div class="pad"><ul class="list" id="vaultList"></ul></div>
+    </div>
+    <div class="panel">
+      <div class="panel-h"><h2>백업 · 옮기기</h2></div>
+      <div class="pad">
+        <p>보관함, 직접 추가한 선택지, 규칙, 학습 결과는 이 브라우저에만 저장됩니다. 다른 PC로 옮기려면 아래 내용을 복사해 두었다가 붙여 넣으세요.</p>
+        <textarea class="ta" id="backup" style="min-height:180px;font-family:var(--f-mono);font-size:11px"></textarea>
+        <div class="actions" style="padding:10px 0 0;border:0">
+          <button class="btn" id="exportBtn" type="button">현재 설정 내보내기</button>
+          <button class="btn" id="importBtn" type="button">붙여 넣은 설정 불러오기</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* ───────────── 공통 사전 ───────────── */
+const PROC=['미용','결합','탈착','비전','수화','하드검사','외관','멸균','포장','품질보증(QA)','품질관리(QC)'];
+const LIGHT=['소프트박스 스튜디오 | soft diffused studio lighting','자연광 | natural daylight','골든아워 | golden hour light','림 라이트 | rim lighting','클린룸 백색광 | clean white cleanroom lighting','하이키 | bright high-key lighting','로우키 | low-key dramatic lighting'];
+const AR_IMG=['1:1','4:5','3:2','16:9','9:16'];
+
+/* 용어 설명 (선택값에 포함되면 표시) */
+const GL={
+ 'ISO 13485':'의료기기 품질경영시스템 국제규격. 설계·생산·서비스 전 과정의 문서화와 기록을 요구.',
+ 'KGMP':'국내 의료기기 제조 및 품질관리 기준(식약처). ISO 13485 기반.',
+ 'EU MDR':'유럽 의료기기 규정 2017/745. 임상평가·PMS·UDI 요구 강화.',
+ 'QMSR':'FDA 품질관리시스템 규정. 2026년부터 ISO 13485를 참조.',
+ 'ISO 14971':'의료기기 위험관리 규격. 위해요인 식별→추정→평가→통제→잔여위험.',
+ 'ISO 18369':'콘택트렌즈 용어·분류·시험방법·광학 공차 규격.',
+ 'MDSAP':'미·캐·브·호·일 5개국 공동 단일 심사 프로그램.',
+ 'CAPA':'시정조치(발생한 문제 재발 방지)와 예방조치(잠재 문제 방지).',
+ '5Why':'"왜?"를 5번 반복해 근본원인까지 파고드는 기법.',
+ '4M':'Man·Machine·Material·Method 네 축으로 원인을 분류.',
+ 'IQ/OQ/PQ':'설치적격성·운전적격성·성능적격성 평가.',
+ 'VMP':'밸리데이션 마스터플랜. 대상·책임·일정을 정한 상위 계획서.',
+ 'STED':'기술문서 요약 양식(GHTF). 제품 설명·위험관리·시험 근거 정리.',
+ 'PPH':'Pieces Per Hour, 시간당 생산수량.',
+ 'FPY':'First Pass Yield, 재작업 없이 한 번에 통과한 비율(공정 직행률의 곱).',
+ 'OEE':'설비종합효율 = 가동률 × 성능효율 × 양품률.',
+ 'MTBF':'평균 고장 간격(MTBF)과 평균 수리 시간(MTTR).',
+ 'DiD':'이중차분법. 처리군과 대조군의 전후 변화 차이로 효과를 추정.',
+ 'SPC':'통계적 공정관리. p-chart는 불량률, X̄-R은 평균·범위 관리.',
+ '파레토':'상위 20% 원인이 80% 결과를 만든다는 원칙으로 우선순위를 정함.',
+ 'RPN':'위험우선순위수 = 심각도 × 발생도 × 검출도 (각 1~10).',
+ 'Action Priority':'AIAG-VDA FMEA의 우선순위(H/M/L). RPN 단순 곱의 왜곡 보완.',
+ 'PFMEA':'공정 고장모드 영향분석.',
+ 'DFMEA':'설계 고장모드 영향분석.',
+ 'PMS':'시판 후 감시. 출시 후 부작용·불만 데이터를 수집·분석.',
+ '구채무':'이전 연도에서 넘어온 미지급 매입채무.',
+ 'RACI':'Responsible·Accountable·Consulted·Informed 역할 구분표.',
+ 'WBS':'작업분해구조. 프로젝트를 산출물 단위로 쪼갠 계층도.',
+ 'OKR':'목표(Objective)와 측정 가능한 핵심결과(Key Results).',
+ 'BSC':'재무·고객·내부프로세스·학습성장 4관점 성과지표.',
+ '3NF':'제3정규형. 기본키가 아닌 컬럼 간 종속을 제거.',
+ 'snake_case':'소문자와 밑줄로 쓰는 이름 규칙 (예: order_no).',
+ 'SSML':'음성합성 마크업. 쉼(break), 강세, 속도를 태그로 지정.',
+ 'lazy init':'탭이 처음 열릴 때 차트를 그려 초기 로딩을 줄이는 방식.',
+ 'AND 조건':'여러 필터를 모두 만족하는 행만 표시.',
+ '바텀시트':'모바일 화면 하단에서 올라오는 상세 패널.',
+ '익스트림 클로즈업':'눈동자·렌즈 테두리처럼 아주 작은 부분을 화면 가득 채우는 샷.',
+ '돌리 인':'카메라가 레일 위에서 피사체 쪽으로 천천히 다가가는 움직임.',
+ '트래킹':'움직이는 피사체를 나란히 따라가는 촬영.',
+ '오비트':'피사체 주위를 원을 그리며 도는 카메라 움직임.',
+ '림 라이트':'피사체 뒤에서 비춰 윤곽선을 밝게 띄우는 조명.',
+ '골든아워':'해 뜬 직후·지기 직전의 따뜻하고 낮은 빛.',
+ '하이키':'그림자가 적고 밝은 톤의 조명. 의료·뷰티 제품에 흔함.',
+ '삼분할':'화면을 3×3으로 나눠 교차점에 피사체를 두는 구도.',
+ '플랫레이':'위에서 수직으로 내려다보며 물건을 평평하게 배치한 구도.',
+ '매크로':'피사체를 실물 크기 이상으로 확대 촬영.',
+ '85mm f/1.4':'인물용 망원 단렌즈. 배경 흐림(심도 얕음)이 큼.',
+ '아이소메트릭':'30° 등각 투영 3D. 공정도·인포그래픽에 적합.',
+ 'WAV 48kHz':'영상 편집 표준 무손실 오디오 포맷.',
+ 'Suno':'가사와 스타일 태그로 노래를 생성하는 음악 AI.',
+ 'XML 태그':'<role>, <rules>처럼 구획을 태그로 감싸는 형식. Claude가 구조를 가장 정확히 인식.'
+};
+
+/* ───────────── 섹션(탭) 정의 ─────────────
+   o: 선택지 배열 또는 {상위값: [...], '*': 기본}  ·  dep: 상위 필드 키  ·  multi: 다중선택  ·  opt: 선택사항
+   선택지 'A | B' 는 한글 | 영문 (영상·사진·음성은 영문을 생성용 프롬프트에 사용) */
+const TABS=[
+{id:'cert',name:'인증',en:'Certification',role:'의료기기(콘택트렌즈) 품질보증·인허가(QA/RA) 전문가',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['절차서 작성·개정','내부심사 / 외부심사 대응','CAPA(시정·예방조치)','밸리데이션(IQ/OQ/PQ)','기술문서(STED) 작성','변경관리','공급자 평가·관리','교육훈련']},
+  {k:'std',l:'적용 규격',multi:true,o:['ISO 13485:2016','KGMP(의료기기 제조 및 품질관리 기준)','EU MDR 2017/745','FDA 21 CFR 820 (QMSR)','ISO 14971:2019 위험관리','ISO 18369 콘택트렌즈','ISO 10993 생물학적 안전성','ISO 11135/11137 멸균','MDSAP']},
+  {k:'task',l:'수행 작업',dep:'sub',o:{
+   '절차서 작성·개정':['신규 절차서 초안 작성','PDF 최신본과 기존 요약 Excel 비교·수정','개정 이력표(Rev.) 작성','규격 조항별 요구사항 매핑표','절차서 요약표 작성'],
+   '내부심사 / 외부심사 대응':['예상 질의 Q&A 작성','심사 체크리스트 작성','부적합 사항 답변서 작성','증빙자료 목록 정리','심사 일정·역할 계획'],
+   'CAPA(시정·예방조치)':['근본원인 분석(5Why)','특성요인도(4M) 정리','시정조치 계획서','유효성 확인 계획','CAPA 종결 보고서'],
+   '밸리데이션(IQ/OQ/PQ)':['밸리데이션 마스터플랜(VMP)','IQ/OQ/PQ 프로토콜 작성','합격 기준 설정','결과 보고서 작성','재밸리데이션 필요성 판단'],
+   '변경관리':['변경 영향성 평가서','변경 승인 요청서','변경 후 검증 계획'],
+   '*':['문서 초안 작성','요약 및 갭 분석','체크리스트 작성','검토 의견 작성']}},
+  {k:'doc',l:'문서 수준',o:['품질매뉴얼(QM)','절차서(SOP)','작업지침서(WI)','기록서식(Form)','보고서(Report)']},
+  {k:'dept',l:'관련 공정·부서',multi:true,o:PROC},
+  {k:'focus',l:'중점 사항',multi:true,opt:true,o:['조항 번호 명시','심사원 관점의 지적 예상','개정 전후 변경점 하이라이트','책임·권한(R&R) 명확화','기록 보관 기간 명시','추적성(Traceability) 확보']},
+  {k:'out',l:'산출물 형식',o:['Excel 표(조항/요구사항/현황/조치)','Word 문서','PDF 보고서','체크리스트','마크다운 문서']}],
+ goal:g=>`${g('sub')} 업무로 「${g('task')}」을(를) 수행한다. 대상 문서 수준은 ${g('doc')}, 근거 규격은 ${g('std')}이다.`,
+ rules:['규격 조항 번호와 원문 요구사항을 근거로 제시','"해야 한다(shall)"와 "권장(should)"을 구분해 표기','문서번호·개정번호·개정일자 필드를 포함'],
+ presets:[
+  {n:'절차서 최신본 비교',v:{sub:'절차서 작성·개정',std:['ISO 13485:2016','KGMP(의료기기 제조 및 품질관리 기준)'],task:'PDF 최신본과 기존 요약 Excel 비교·수정',doc:'절차서(SOP)',dept:['품질보증(QA)'],focus:['개정 전후 변경점 하이라이트','조항 번호 명시'],out:'Excel 표(조항/요구사항/현황/조치)'}},
+  {n:'외부심사 예상 Q&A',v:{sub:'내부심사 / 외부심사 대응',std:['ISO 13485:2016','MDSAP'],task:'예상 질의 Q&A 작성',doc:'절차서(SOP)',dept:['품질보증(QA)','외관'],focus:['심사원 관점의 지적 예상'],out:'Word 문서'}}]},
+
+{id:'prod',name:'생산',en:'Production',role:'콘택트렌즈 제조 공정의 생산관리·데이터 분석 전문가',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['생산일지 분석','불량률 분석','MES 오더 진행 추적','설비 가동률 분석','로트(Lot) 추적','원부자재 발주·입고 분석']},
+  {k:'period',l:'분석 기간',o:['일간','주간','월간','누적(연간)','기준일 전후 비교']},
+  {k:'proc',l:'대상 공정',multi:true,o:PROC.slice(0,9)},
+  {k:'metric',l:'핵심 지표',multi:true,dep:'sub',o:{
+   '불량률 분석':['공정별 불량률(%)','불량 유형(원인)별 비율','설비별 불량률','원자재 공급사별 불량률','누적 직행률(FPY)'],
+   '생산일지 분석':['생산수량','PPH(시간당 생산량)','수율','가동시간','인당 생산성'],
+   'MES 오더 진행 추적':['공정별 진행률','납기 잔여일(D-Day)','납기 지연·임박 건수','공정별 수량 부족분','리드타임(실적/예상)'],
+   '설비 가동률 분석':['가동률','비가동 사유','MTBF/MTTR','OEE(설비종합효율)'],
+   '로트(Lot) 추적':['몰드 로트별 불량률','컷오프 전후 비교','칼라/투명 분리 비교','공정 누적 불량률'],
+   '원부자재 발주·입고 분석':['발주 대비 입고율','입고 리드타임','미입고 잔량','공급업체별 납기 준수율']}},
+  {k:'method',l:'분석 기법',multi:true,opt:true,o:['파레토 분석','추이 분석(이동평균)','전후 비교(DiD)','관리도(SPC: p-chart, X̄-R)','4M 원인 분석','특성요인도(피쉬본)','상관 분석']},
+  {k:'src',l:'데이터 원천',o:['CSV 파일','엑셀(xlsx/xlsb)','MES 내보내기 파일','붙여 넣은 표 데이터']},
+  {k:'out',l:'산출물 형식',o:['모바일 HTML 대시보드(다크, 480px)','엑셀 분석 시트','일일 보고 요약(텍스트)','Python 자동화 스크립트','경영진 보고용 1페이지']}],
+ goal:g=>`${g('period')} 「${g('sub')}」 — ${g('proc')} 공정의 ${g('metric')}을(를) ${g('method','적절한 기법')}(으)로 분석한다. 데이터는 ${g('src')}에서 읽는다.`,
+ rules:['수치는 소수점 1자리','주말·휴무일 데이터 제외','공정은 미용→결합→탈착→비전→수화→하드검사→외관 순서로 정렬','비중 비교는 수량이 아닌 비율 기준','특이사항(전일·전주 대비 급변 항목)을 맨 앞에 요약'],
+ presets:[
+  {n:'일간 불량률 보고서',v:{sub:'불량률 분석',period:'일간',proc:['미용','결합','탈착','하드검사','수화','외관'],metric:['공정별 불량률(%)','설비별 불량률','불량 유형(원인)별 비율'],method:['파레토 분석','추이 분석(이동평균)'],src:'CSV 파일',out:'모바일 HTML 대시보드(다크, 480px)'}},
+  {n:'MES 납기 현황',v:{sub:'MES 오더 진행 추적',period:'일간',proc:['미용','결합','탈착','외관','포장'],metric:['공정별 진행률','납기 잔여일(D-Day)','납기 지연·임박 건수'],src:'MES 내보내기 파일',out:'모바일 HTML 대시보드(다크, 480px)'}}]},
+
+{id:'risk',name:'리스크관리',en:'Risk',role:'의료기기 위험관리 및 경영 리스크 분석 전문가',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['제품 위험관리(ISO 14971)','공정 FMEA(PFMEA)','설계 FMEA(DFMEA)','매입채무(AP) 리스크','공급망·공급업체 리스크','품질 리스크(불량·클레임)','정보보안·데이터 무결성']},
+  {k:'method',l:'평가 방식',dep:'sub',o:{
+   '제품 위험관리(ISO 14971)':['위해요인 식별→위험 추정→평가→통제→잔여위험 평가','편익-위험 분석','시판 후 감시(PMS) 연계 평가'],
+   '공정 FMEA(PFMEA)':['RPN(심각도×발생도×검출도)','Action Priority(AIAG-VDA)','관리계획서(Control Plan) 연계'],
+   '설계 FMEA(DFMEA)':['RPN(심각도×발생도×검출도)','Action Priority(AIAG-VDA)'],
+   '매입채무(AP) 리스크':['5단계 등급(구채무/긴급/주의/정상/완납)','거래처별 칸반 분류','지출 예측(최근 2개월×0.6 + 연평균×0.4)'],
+   '*':['5×5 리스크 매트릭스(발생가능성×영향도)','시나리오 분석','SWOT 분석','체크리스트 평가']}},
+  {k:'scale',l:'등급 척도',o:['3단계(상/중/하)','5단계','10점 척도']},
+  {k:'resp',l:'대응 전략',multi:true,o:['회피','감소(완화)','전가','수용','모니터링']},
+  {k:'owner',l:'관련 조직',multi:true,opt:true,o:['대표이사','품질보증팀','생산팀','구매팀','재무팀','영업팀','연구소']},
+  {k:'out',l:'산출물 형식',o:['리스크 레지스터(표)','리스크 히트맵','칸반 보드','액션 플랜(담당/기한)','경영진 보고서']}],
+ goal:g=>`「${g('sub')}」에 대해 ${g('method')} 방식으로 리스크를 식별·평가하고 ${g('resp')} 관점의 대응 방안을 도출한다.`,
+ rules:['등급 판정 기준표를 먼저 정의한 뒤 평가','리스크마다 근거 데이터, 담당자, 기한을 명시','잔여 리스크와 수용 가능 여부를 별도 표기'],
+ presets:[{n:'매입채무 칸반',v:{sub:'매입채무(AP) 리스크',method:'5단계 등급(구채무/긴급/주의/정상/완납)',scale:'5단계',resp:['감소(완화)','모니터링'],owner:['재무팀','구매팀'],out:'칸반 보드'}},
+  {n:'PFMEA 작성',v:{sub:'공정 FMEA(PFMEA)',method:'Action Priority(AIAG-VDA)',scale:'10점 척도',resp:['감소(완화)'],owner:['생산팀','품질보증팀'],out:'리스크 레지스터(표)'}}]},
+
+{id:'personal',name:'퍼스널',en:'Personal',role:'비즈니스 커뮤니케이션 및 업무 생산성 코치',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['이메일 작성','보고서·기안문','회의록 정리','일정·할 일 정리','문서 요약','번역','학습·자기계발','의사결정 정리']},
+  {k:'to',l:'받는 사람',o:['대표이사·임원','팀원','협력사·거래처','고객','인증 심사원','본인용 메모']},
+  {k:'purpose',l:'목적',dep:'sub',o:{
+   '이메일 작성':['요청','보고','감사','사과·해명','독촉','일정 조율'],
+   '보고서·기안문':['품의(결재 요청)','결과 보고','현황 보고','개선 제안'],
+   '회의록 정리':['결정사항 중심','액션아이템(담당/기한) 중심','논의 전문 요약'],
+   '번역':['한→영','영→한','한→중','한→태국어'],
+   '*':['핵심 요약','실행 계획','장단점 비교','체크리스트']}},
+  {k:'tone',l:'어조',o:['격식체(공문)','정중한 비즈니스','간결·명료','친근한','설득형']},
+  {k:'len',l:'분량',o:['3줄 이내','1문단','A4 반 페이지','A4 1페이지 이상']},
+  {k:'out',l:'산출물 형식',o:['바로 붙여 쓸 수 있는 본문','제목·본문·서명 포함','글머리표 요약','표 포함']}],
+ goal:g=>`${g('to')}에게 전달할 ${g('sub')}(${g('purpose')})을(를) ${g('tone')} 어조, ${g('len')} 분량으로 작성한다.`,
+ rules:['첫 문장에 결론(요청사항)을 배치','날짜·수치·고유명사는 원문 그대로 유지'],
+ presets:[{n:'임원 결과 보고 메일',v:{sub:'이메일 작성',to:'대표이사·임원',purpose:'보고',tone:'정중한 비즈니스',len:'1문단',out:'제목·본문·서명 포함'}}]},
+
+{id:'dash',name:'대시보드',en:'Dashboard UI',role:'데이터 시각화 및 대시보드 UI/UX 설계 전문 프론트엔드 개발자',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['KPI 요약 대시보드','칸반 보드','추이·비교 차트 리포트','필터·검색 데이터 테이블','드랍다운 빌더(폼)','모바일 일일 리포트']},
+  {k:'stack',l:'구현 기술',o:['단일 HTML (Vanilla JS + Chart.js)','React + Tailwind','Streamlit (Python)','FastAPI + HTML','Excel 대시보드 시트']},
+  {k:'layout',l:'레이아웃',o:['상단 탭 + 카드 그리드','좌측 사이드바 + 본문','모바일 단일 컬럼 (max-width 480px)','벤토 그리드','스와이프 탭 전환형']},
+  {k:'theme',l:'테마',o:['다크 테마','라이트 테마','다크/라이트 토글','시스템 설정 따름']},
+  {k:'chart',l:'차트 종류',multi:true,o:['막대 차트','누적 막대','선 차트(추이)','도넛 차트(비율)','파레토 차트','콤보(막대+선)','히트맵','게이지','스파크라인']},
+  {k:'comp',l:'UI 컴포넌트',multi:true,o:['KPI 카드(전기 대비 증감)','탭 네비게이션','드롭다운 필터(AND 조건)','실시간 검색창','정렬 가능한 테이블','바텀시트 상세보기','모달','토스트 알림','툴팁','클립보드 복사 버튼','D-Day 배지','상태 칩(정상/주의/긴급)']},
+  {k:'inter',l:'인터랙션',multi:true,opt:true,o:['좌우 스와이프로 탭 전환','차트 지연 초기화(lazy init)','클릭 시 드릴다운','차트 데이터 라벨 표시','반응형 리사이즈']},
+  {k:'data',l:'데이터 입력',o:['CSV 파일 선택','엑셀 업로드','폴더 선택(tkinter) 후 자동 생성','API/DB 연동','샘플 데이터 내장']},
+  {k:'out',l:'산출물 형식',o:['단일 HTML 파일','Python 생성 스크립트 + HTML 템플릿','컴포넌트 단위 코드','와이어프레임 설명']}],
+ goal:g=>`${g('stack')}(으)로 「${g('sub')}」 화면을 ${g('layout')} 레이아웃, ${g('theme')}(으)로 구현한다.`,
+ rules:['최소 글자 크기 11px','차트 축·라벨 색은 배경 대비 확보(다크 테마는 #fff)','수치 소수점 1자리','색상은 CSS 변수(토큰)로 관리','모바일 터치 영역 최소 44px','한국어 UI 라벨 사용'],
+ presets:[{n:'모바일 KPI 리포트',v:{sub:'모바일 일일 리포트',stack:'단일 HTML (Vanilla JS + Chart.js)',layout:'스와이프 탭 전환형',theme:'다크 테마',chart:['도넛 차트(비율)','막대 차트','선 차트(추이)'],comp:['KPI 카드(전기 대비 증감)','탭 네비게이션','상태 칩(정상/주의/긴급)'],inter:['좌우 스와이프로 탭 전환','차트 지연 초기화(lazy init)','차트 데이터 라벨 표시'],data:'CSV 파일 선택',out:'Python 생성 스크립트 + HTML 템플릿'}},
+  {n:'필터 테이블',v:{sub:'필터·검색 데이터 테이블',stack:'단일 HTML (Vanilla JS + Chart.js)',layout:'상단 탭 + 카드 그리드',theme:'다크/라이트 토글',chart:['스파크라인'],comp:['드롭다운 필터(AND 조건)','실시간 검색창','정렬 가능한 테이블','클립보드 복사 버튼'],data:'CSV 파일 선택',out:'단일 HTML 파일'}}]},
+
+{id:'schema',name:'스키마',en:'Schema',role:'데이터 모델링 및 데이터베이스 설계 전문가',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['DB 테이블 설계','CSV 표준 헤더 정의','JSON 스키마','API 명세(OpenAPI)','ERD 작성','Alias(동의어) 사전','데이터 마이그레이션']},
+  {k:'db',l:'저장소',o:['SQLite','PostgreSQL','MySQL/MariaDB','Supabase','Notion 데이터베이스','Excel/CSV','Google Sheets']},
+  {k:'entity',l:'대상 엔터티',multi:true,o:['생산오더','로트(Lot)','공정','불량 이력','설비','거래처(공급업체)','원부자재','발주·입고','문서(절차서)','사용자·부서','프롬프트 템플릿']},
+  {k:'naming',l:'명명 규칙',o:['snake_case 영문 컬럼 + 한글 표시명','한글 컬럼명','camelCase']},
+  {k:'rule',l:'설계 원칙',multi:true,o:['기본키/외래키 명시','3정규형(3NF)','인덱스 설계','감사 추적(created_at, updated_by)','소프트 삭제(deleted_at)','코드 테이블 분리','데이터 품질(DQ) 검증 규칙']},
+  {k:'out',l:'산출물 형식',o:['DDL(SQL)','ERD (Mermaid)','데이터 사전 표','Pydantic/TypeScript 모델','샘플 데이터 10건','마이그레이션 스크립트']}],
+ goal:g=>`${g('db')} 기반으로 ${g('entity')}에 대한 「${g('sub')}」을(를) ${g('naming')} 규칙으로 수행한다.`,
+ rules:['영문 값은 DB 저장 시 한글로 번역해 저장하고 원문은 별도 컬럼에 보존','컬럼마다 타입·NULL 허용·기본값·설명을 표로 정리','CSV는 UTF-8-BOM(utf-8-sig) 인코딩'],
+ presets:[{n:'MES 오더 테이블',v:{sub:'DB 테이블 설계',db:'SQLite',entity:['생산오더','공정','불량 이력'],naming:'snake_case 영문 컬럼 + 한글 표시명',rule:['기본키/외래키 명시','감사 추적(created_at, updated_by)','데이터 품질(DQ) 검증 규칙'],out:'데이터 사전 표'}}]},
+
+{id:'video',name:'영상',en:'Video',media:true,role:'광고·교육 영상 연출가이자 AI 영상 생성 프롬프트 엔지니어',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['제품 홍보 영상','제품 사용법 안내','교육·SOP 영상','숏폼(릴스·쇼츠)','공정·클린룸 소개','브랜드 필름']},
+  {k:'tool',l:'생성 도구',o:['Sora','Google Veo','Runway Gen-4','Kling','Pika','Luma Dream Machine']},
+  {k:'subject',l:'피사체',dep:'sub',o:{
+   '제품 홍보 영상':['손끝 위 콘택트렌즈 | a soft contact lens balanced on a fingertip','빛을 받는 컬러렌즈 | a colored contact lens catching light, iris pattern visible','렌즈 착용한 눈 | a human eye wearing a colored contact lens'],
+   '공정·클린룸 소개':['클린룸 작업자 | a technician in a white cleanroom suit','자동화 생산 라인 | an automated contact lens production line','비전 검사 장비 | a machine-vision inspection station'],
+   '제품 사용법 안내':['렌즈 착용하는 손 | hands placing a contact lens onto the eye','렌즈 세척 단계 | hands rinsing a lens in a case'],
+   '*':['제품 패키지 | product packaging on a clean surface','웃는 모델 | a model smiling at the camera','손 동작 시연 | hands demonstrating each step']}},
+  {k:'shot',l:'샷 크기·앵글',o:['익스트림 클로즈업 | extreme close-up','클로즈업 | close-up','미디엄 샷 | medium shot','와이드 샷 | wide shot','버드아이 뷰 | bird\'s-eye view','로우 앵글 | low-angle shot','POV | point-of-view shot']},
+  {k:'move',l:'카메라 무빙',o:['고정 | static locked-off camera','돌리 인 | slow dolly in','돌리 아웃 | slow dolly out','트래킹 | smooth tracking shot','팬 | slow pan','틸트 업 | tilt up','오비트 | orbiting around the subject','크레인 | crane shot rising','핸드헬드 | subtle handheld movement']},
+  {k:'light',l:'조명',o:LIGHT},
+  {k:'style',l:'스타일',o:['시네마틱 | cinematic','제품 광고 | high-end commercial product ad','다큐멘터리 | documentary','미니멀 | minimalist','3D 애니메이션 | 3D animated','모션 그래픽 | motion graphics']},
+  {k:'mood',l:'분위기',opt:true,o:['청량한 | fresh and airy','고급스러운 | luxurious','신뢰감 | clinical and trustworthy','따뜻한 | warm','역동적인 | dynamic and energetic']},
+  {k:'dur',l:'길이',o:['5초','10초','15초','30초','60초']},
+  {k:'ar',l:'화면 비율',o:['16:9','9:16','1:1','4:5']},
+  {k:'fps',l:'프레임',opt:true,o:['24fps 시네마 | 24fps','60fps | 60fps','슬로모션 | slow motion']}],
+ goal:g=>`${g('tool')}(으)로 ${g('dur')} 길이의 「${g('sub')}」을(를) ${g('ar')} 비율로 만든다.`,
+ rules:['컷별로 시간·화면 묘사·자막·사운드를 표로 정리','의료기기 광고 규정에 어긋나는 효능 과장 표현 금지','생성용 영문 프롬프트는 컷마다 따로 제공'],
+ presets:[{n:'컬러렌즈 숏폼',v:{sub:'숏폼(릴스·쇼츠)',tool:'Sora',subject:'웃는 모델 | a model smiling at the camera',shot:'익스트림 클로즈업 | extreme close-up',move:'돌리 인 | slow dolly in',light:'소프트박스 스튜디오 | soft diffused studio lighting',style:'제품 광고 | high-end commercial product ad',mood:'청량한 | fresh and airy',dur:'15초',ar:'9:16',fps:'슬로모션 | slow motion'}}]},
+
+{id:'photo',name:'사진',en:'Image',media:true,role:'상업 사진 디렉터이자 AI 이미지 생성 프롬프트 엔지니어',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['제품 누끼·패키지 컷','모델·인물 사진','배너·상세페이지 배경','인포그래픽','아이콘·로고','일러스트']},
+  {k:'tool',l:'생성 도구',o:['Midjourney','GPT Image (ChatGPT)','Google Imagen / Gemini','Stable Diffusion / Flux','Adobe Firefly']},
+  {k:'subject',l:'피사체',dep:'sub',o:{
+   '제품 누끼·패키지 컷':['렌즈 케이스와 블리스터 | a contact lens blister pack and case','물방울 위 렌즈 | a contact lens resting on water droplets','렌즈 단품 | a single soft contact lens'],
+   '모델·인물 사진':['컬러렌즈 착용 여성 | a young woman wearing colored contact lenses','눈 클로즈업 | a close-up of a human eye with a colored lens'],
+   '인포그래픽':['제조 공정 흐름 | contact lens manufacturing process flow','렌즈 단면 구조 | cross-section of a contact lens'],
+   '*':['추상 물결 배경 | abstract soft water ripple background','브랜드 심볼 | a simple brand symbol']}},
+  {k:'comp',l:'구도',o:['중앙 배치 | centered composition','삼분할 | rule-of-thirds composition','플랫레이 | flat lay, top-down view','대칭 | symmetrical composition','여백 강조 | generous negative space','매크로 | macro detail shot']},
+  {k:'light',l:'조명',o:LIGHT},
+  {k:'lens',l:'렌즈',opt:true,o:['매크로 100mm | 100mm macro lens','85mm f/1.4 | 85mm f/1.4, shallow depth of field','35mm | 35mm lens','광각 24mm | 24mm wide-angle lens']},
+  {k:'style',l:'스타일',o:['포토리얼 | photorealistic','스튜디오 제품 사진 | studio product photography','에디토리얼 | editorial magazine style','플랫 일러스트 | flat vector illustration','아이소메트릭 3D | isometric 3D render','수채화 | watercolor illustration']},
+  {k:'color',l:'색감',o:['화이트·블루 클린 | clean white and soft blue palette','파스텔 | pastel palette','비비드 | vivid saturated colors','모노톤 | monochrome','브라운·베이지 | warm brown and beige tones']},
+  {k:'ar',l:'화면 비율',o:AR_IMG},
+  {k:'neg',l:'제외 요소',multi:true,opt:true,o:['텍스트·워터마크 | text, watermark','왜곡된 손가락 | distorted fingers','흐림 | blur','과도한 반사 | harsh reflections','저해상도 | low resolution']}],
+ goal:g=>`${g('tool')}에서 쓸 「${g('sub')}」 이미지 생성 프롬프트를 만든다. 비율은 ${g('ar')}.`,
+ rules:['영문 생성 프롬프트와 한글 설명을 함께 제공','같은 콘셉트의 변형안 3개 제시'],
+ presets:[{n:'물방울 렌즈 제품컷',v:{sub:'제품 누끼·패키지 컷',tool:'Midjourney',subject:'물방울 위 렌즈 | a contact lens resting on water droplets',comp:'매크로 | macro detail shot',light:'하이키 | bright high-key lighting',lens:'매크로 100mm | 100mm macro lens',style:'스튜디오 제품 사진 | studio product photography',color:'화이트·블루 클린 | clean white and soft blue palette',ar:'4:5',neg:['텍스트·워터마크 | text, watermark']}}]},
+
+{id:'voice',name:'음성',en:'Audio',media:true,role:'오디오 디렉터이자 음성·음악 생성 프롬프트 엔지니어',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['제품 내레이션','사내 안내방송','교육 음성(SOP)','광고 성우','배경음악(BGM)','효과음']},
+  {k:'tool',l:'생성 도구',o:['ElevenLabs','OpenAI TTS','CLOVA Dubbing','Suno','Udio']},
+  {k:'voice',l:'목소리·장르',dep:'sub',o:{
+   '배경음악(BGM)':['어쿠스틱 팝 | acoustic pop','로파이 | lo-fi chill','코퍼레이트 업비트 | upbeat corporate','앰비언트 | ambient','시네마틱 오케스트라 | cinematic orchestral'],
+   '효과음':['UI 클릭음 | soft UI click','물방울 | water droplet','기계 작동음 | low machine hum','전환음 | whoosh transition'],
+   '*':['30대 여성·밝고 신뢰감 | female, 30s, bright and trustworthy','40대 남성·차분한 저음 | male, 40s, calm low voice','20대 여성·친근함 | female, 20s, friendly','중성적 음성 | neutral, gender-ambiguous voice']}},
+  {k:'emotion',l:'감정',o:['차분한 | calm','밝은 | cheerful','진지한 | serious','따뜻한 | warm','에너지 넘치는 | energetic']},
+  {k:'speed',l:'속도·템포',o:['느리게 | slow pace (0.9x / 70 BPM)','보통 | natural pace (1.0x / 100 BPM)','빠르게 | brisk pace (1.1x / 125 BPM)']},
+  {k:'lang',l:'언어',o:['한국어','영어','중국어','태국어','일본어']},
+  {k:'len',l:'길이',o:['15초','30초','60초','2분','3분 이상']},
+  {k:'out',l:'산출물 형식',o:['대본 + 생성 설정값','SSML 포함 대본','Suno 스타일 태그 + 가사','MP3 44.1kHz','WAV 48kHz']}],
+ goal:g=>`${g('tool')}(으)로 ${g('lang')} ${g('len')} 분량의 「${g('sub')}」을(를) 만든다.`,
+ rules:['문장 사이 쉼 위치를 / 로 표시','전문 용어는 괄호 안에 발음을 병기 (예: 하이드로겔[하이드로젤])'],
+ presets:[{n:'교육 음성 내레이션',v:{sub:'교육 음성(SOP)',tool:'ElevenLabs',voice:'30대 여성·밝고 신뢰감 | female, 30s, bright and trustworthy',emotion:'차분한 | calm',speed:'보통 | natural pace (1.0x / 100 BPM)',lang:'한국어',len:'2분',out:'SSML 포함 대본'}}]},
+
+{id:'admin',name:'관리(총괄)',en:'Management',role:'경영 기획 및 프로젝트 관리(PMO) 총괄 전문가',
+ fields:[
+  {k:'sub',l:'세부 항목',o:['프로젝트 기획','업무 분장(R&R)','주간·월간 보고','KPI / OKR 설정','의사결정 메모','멀티 AI 협업 설계','업무 자동화 설계']},
+  {k:'scope',l:'범위',o:['전사','부서 단위','개인 업무','외부 협력사 포함']},
+  {k:'horizon',l:'기간',o:['이번 주','1개월','분기','연간']},
+  {k:'frame',l:'관리 프레임워크',multi:true,o:['WBS(작업분해구조)','RACI 매트릭스','간트 차트','OKR','BSC(균형성과표)','PDCA','아이젠하워 매트릭스']},
+  {k:'ais',l:'AI 역할 배분',multi:true,opt:true,o:['Claude: 기획·문서·분석','Claude Code: 저장소 작업·자동화','ChatGPT: 아이디어 확장','Gemini: 구글 워크스페이스 연동','Perplexity: 최신 정보 검색','Midjourney/Sora: 시각 자료']},
+  {k:'out',l:'산출물 형식',o:['실행 계획표(담당/기한/산출물)','보고서','체크리스트','대시보드 요구사항 정의서','노션 페이지 구조']}],
+ goal:g=>`${g('scope')} 범위에서 ${g('horizon')} 동안의 「${g('sub')}」을(를) ${g('frame')} 기준으로 수립한다.`,
+ rules:['각 항목에 담당자·기한·완료 기준(Definition of Done)을 명시','우선순위를 상/중/하로 표기','리스크와 의존관계를 별도 표로 정리'],
+ presets:[{n:'멀티 AI 업무 설계',v:{sub:'멀티 AI 협업 설계',scope:'개인 업무',horizon:'1개월',frame:['RACI 매트릭스','PDCA'],ais:['Claude: 기획·문서·분석','Claude Code: 저장소 작업·자동화','Perplexity: 최신 정보 검색'],out:'실행 계획표(담당/기한/산출물)'}}]}
+];
+
+const COMMON=[
+ {k:'ai',l:'대상 AI',o:['Claude','Claude Code (VS Code)','ChatGPT','Gemini','GitHub Copilot','Perplexity'],skipMedia:true},
+ {k:'mode',l:'진행 방식',o:['질문 → 계획 수립 → 승인 후 실행','바로 실행 후 결과 보고','단계별로 하나씩 확인하며 진행','초안 3가지 제안 후 선택']},
+ {k:'fmt',l:'프롬프트 형식',o:['마크다운 섹션','XML 태그 (Claude 권장)','한 문단 요약형']},
+ {k:'detail',l:'응답 상세도',o:['핵심만 간결하게','표준','매우 상세하게(근거 포함)']},
+ {k:'ctx',l:'추가 맥락',text:true,opt:true}
+];
+const MODE_TXT={
+ '질문 → 계획 수립 → 승인 후 실행':'작업 전에 불명확한 점을 먼저 질문하고, 단계별 실행 계획을 제시한 뒤 내 승인을 받고 진행한다.',
+ '바로 실행 후 결과 보고':'추가 질문 없이 합리적인 가정으로 바로 실행하고, 사용한 가정과 결과를 함께 보고한다.',
+ '단계별로 하나씩 확인하며 진행':'한 단계씩 결과를 보여 주고 내 확인을 받은 뒤 다음 단계로 넘어간다.',
+ '초안 3가지 제안 후 선택':'서로 다른 방향의 초안 3가지를 먼저 제시하고, 내가 고른 안으로 완성한다.'};
+const DETAIL_TXT={'핵심만 간결하게':'답변은 핵심만 간결하게.','표준':'','매우 상세하게(근거 포함)':'판단 근거와 출처를 포함해 상세하게 설명한다.'};
+const DEFAULT_RULES=[
+ {t:'요청을 수행하기 전에 질문해서 계획을 세우고, 수정·승인을 받은 뒤 진행',on:true},
+ {t:'DB에 저장할 때 영문은 한글로 번역',on:true},
+ {t:'설명은 한글로',on:true}];
+
+/* ───────────── 저장소 ───────────── */
+const KEY='promptWorkbench.v1';
+let S={vals:{},custom:{},rules:DEFAULT_RULES.slice(),freq:{},pats:[],vault:[],anaInfo:null};
+try{const raw=localStorage.getItem(KEY);if(raw)S=Object.assign(S,JSON.parse(raw));}catch(e){}
+function persist(){try{localStorage.setItem(KEY,JSON.stringify(S));}catch(e){}}
+
+/* ───────────── 유틸 ───────────── */
+const $=s=>document.querySelector(s);
+const lab=x=>String(x).split(' | ')[0];
+const en=x=>{const p=String(x).split(' | ');return p[1]||p[0];};
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const has=v=>Array.isArray(v)?v.length>0:!!(v&&String(v).trim());
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(t._h);t._h=setTimeout(()=>t.classList.remove('on'),1600);}
+function fieldsOf(t){return t.fields.concat(COMMON.filter(c=>!(t.media&&c.skipMedia)));}
+function V(t){return S.vals[t.id]||(S.vals[t.id]={mode:'질문 → 계획 수립 → 승인 후 실행',fmt:'마크다운 섹션',detail:'표준'});}
+function freqOf(x){return S.freq[lab(x)]||0;}
+function optsOf(t,f,v){
+  let o=f.o||[];
+  if(f.dep&&!Array.isArray(o)) o=o[v[f.dep]]||o['*']||[];
+  const c=((S.custom[t.id]||{})[f.k])||[];
+  const all=[...o,...c.filter(x=>!o.includes(x))];
+  return all.map((x,i)=>({x,i,f:freqOf(x)})).sort((a,b)=>b.f-a.f||a.i-b.i).map(e=>e.x);
+}
+function gloss(val){
+  const vals=Array.isArray(val)?val:[val];const out=[];
+  for(const v of vals){for(const k in GL){if(String(v).includes(k)&&!out.includes(GL[k])){out.push(GL[k]);break;}}}
+  return out.slice(0,2).join(' ');
+}
+
+/* ───────────── 탭 ───────────── */
+let cur=TABS[0], view='builder';
+function renderTabs(){
+  const nav=$('#tabs');
+  nav.innerHTML=TABS.map(t=>`<button class="tab" role="tab" type="button" data-id="${t.id}" aria-selected="${view==='builder'&&cur.id===t.id}"><b>${t.name}</b><small>${t.en}</small></button>`).join('')+
+   `<button class="tab util" role="tab" type="button" data-id="history" aria-selected="${view==='history'}"><b>히스토리 학습</b><small>Learn</small></button>`+
+   `<button class="tab util" role="tab" type="button" data-id="vault" aria-selected="${view==='vault'}"><b>보관함</b><small>Saved</small></button>`;
+}
+$('#tabs').addEventListener('click',e=>{const b=e.target.closest('.tab');if(!b)return;location.hash=b.dataset.id;});
+function route(){
+  const h=(location.hash||'').slice(1);
+  if(h==='history'||h==='vault'){view=h;}
+  else{view='builder';cur=TABS.find(t=>t.id===h)||cur;}
+  $('#builder').hidden=view!=='builder';$('#history').hidden=view!=='history';$('#vault').hidden=view!=='vault';
+  renderTabs();
+  if(view==='builder')renderBuilder();
+  if(view==='history')renderHistory();
+  if(view==='vault')renderVault();
+}
+window.addEventListener('hashchange',route);
+
+/* ───────────── 빌더 ───────────── */
+let addOpen=null;
+function renderBuilder(){
+  const t=cur,v=V(t),F=fieldsOf(t);
+  $('#tabTitle').textContent=t.name+' 프롬프트';
+  $('#tabRole').textContent='AI 역할: '+t.role;
+  $('#presets').innerHTML='<span class="lbl">빠른 시작</span>'+(t.presets||[]).map((p,i)=>`<button class="chip-btn" type="button" data-p="${i}">${esc(p.n)}</button>`).join('');
+  let blocked=false,nextMarked=false,rows='',n=0;
+  F.forEach((f,idx)=>{
+    if(idx===t.fields.length)rows+=`<tr class="group"><td colspan="4">공통 설정</td></tr>`;
+    n++;
+    const val=v[f.k],done=has(val);
+    let cls=blocked?'locked':done?'done':'';
+    if(!blocked&&!done&&!nextMarked&&!f.opt){cls='next';nextMarked=true;}
+    const dis=blocked?'disabled':'';
+    let ctl='';
+    if(f.text){
+      ctl=`<textarea class="ta" id="f-${f.k}" data-k="${f.k}" ${dis} placeholder="파일명, 데이터 위치, 이전 결과물, 꼭 지킬 조건 등">${esc(val||'')}</textarea>`;
+    }else{
+      const opts=optsOf(t,f,v);
+      const star=x=>freqOf(x)>0?'★ ':'';
+      if(f.multi){
+        const sel=Array.isArray(val)?val:[];
+        ctl=`<select class="sel" id="f-${f.k}" data-k="${f.k}" data-multi="1" ${dis} aria-label="${f.l}"><option value="">＋ ${sel.length?'더 추가':'선택'} (여러 개 가능)</option>${opts.filter(x=>!sel.includes(x)).map(x=>`<option value="${esc(x)}">${star(x)}${esc(lab(x))}</option>`).join('')}<option value="__add">＋ 직접 추가…</option></select>`+
+          (sel.length?`<div class="chips">${sel.map(x=>`<span class="chip">${esc(lab(x))}<button type="button" data-rm="${f.k}" data-v="${esc(x)}" aria-label="${esc(lab(x))} 빼기">×</button></span>`).join('')}</div>`:'');
+      }else{
+        ctl=`<select class="sel" id="f-${f.k}" data-k="${f.k}" ${dis} aria-label="${f.l}"><option value="">— 선택 —</option>${opts.map(x=>`<option value="${esc(x)}" ${x===val?'selected':''}>${star(x)}${esc(lab(x))}</option>`).join('')}<option value="__add">＋ 직접 추가…</option></select>`;
+      }
+      if(addOpen===f.k)ctl+=`<div class="addrow"><input id="add-${f.k}" placeholder="새 선택지 (영상·사진은 '한글 | English')"><button class="btn sm" type="button" data-addok="${f.k}">추가</button></div>`;
+    }
+    const tag=f.multi?'<span class="opt multi">다중</span>':f.opt?'<span class="opt">선택</span>':'';
+    rows+=`<tr class="${cls}"><td class="no"><i></i>${String(n).padStart(2,'0')}</td><td class="fl"><label for="f-${f.k}">${f.l}</label>${tag}</td><td class="ctl">${ctl}</td><td class="gl">${done&&!f.text?esc(gloss(val)):''}</td></tr>`;
+    if(!done&&!f.opt)blocked=true;
+  });
+  $('#rows').innerHTML=rows;
+  if(addOpen){const i=$('#add-'+addOpen);i&&i.focus();}
+  generate();
+}
+function setVal(k,val){
+  const t=cur,v=V(t);v[k]=val;
+  t.fields.forEach(f=>{ if(f.dep===k){const ok=optsOf(t,f,v);
+    if(Array.isArray(v[f.k]))v[f.k]=v[f.k].filter(x=>ok.includes(x)); else if(v[f.k]&&!ok.includes(v[f.k]))v[f.k]='';}});
+  persist();renderBuilder();
+}
+$('#rows').addEventListener('change',e=>{
+  const s=e.target;if(!s.dataset.k)return;const k=s.dataset.k;
+  if(s.tagName==='TEXTAREA'){V(cur)[k]=s.value;persist();generate();return;}
+  if(s.value==='__add'){addOpen=k;renderBuilder();return;}
+  addOpen=null;
+  if(s.dataset.multi){if(!s.value)return;const a=Array.isArray(V(cur)[k])?V(cur)[k].slice():[];a.push(s.value);setVal(k,a);}
+  else setVal(k,s.value);
+});
+$('#rows').addEventListener('input',e=>{const s=e.target;if(s.tagName==='TEXTAREA'&&s.dataset.k){V(cur)[s.dataset.k]=s.value;persist();generate();}});
+$('#rows').addEventListener('click',e=>{
+  const rm=e.target.closest('[data-rm]');
+  if(rm){const k=rm.dataset.rm;setVal(k,(V(cur)[k]||[]).filter(x=>x!==rm.dataset.v));return;}
+  const ok=e.target.closest('[data-addok]');
+  if(ok)addCustom(ok.dataset.addok);
+});
+$('#rows').addEventListener('keydown',e=>{if(e.key==='Enter'&&e.target.id&&e.target.id.startsWith('add-')){e.preventDefault();addCustom(e.target.id.slice(4));}if(e.key==='Escape'&&addOpen){addOpen=null;renderBuilder();}});
+function addCustom(k){
+  const i=$('#add-'+k);const val=(i&&i.value||'').trim();if(!val)return;
+  const c=S.custom[cur.id]||(S.custom[cur.id]={});(c[k]||(c[k]=[])).includes(val)||c[k].push(val);
+  addOpen=null;const f=fieldsOf(cur).find(f=>f.k===k);
+  if(f.multi){const a=Array.isArray(V(cur)[k])?V(cur)[k].slice():[];a.push(val);setVal(k,a);}else setVal(k,val);
+  toast('선택지를 추가했습니다');
+}
+$('#presets').addEventListener('click',e=>{const b=e.target.closest('[data-p]');if(!b)return;const p=cur.presets[+b.dataset.p];
+  const v=V(cur);cur.fields.forEach(f=>delete v[f.k]);Object.assign(v,JSON.parse(JSON.stringify(p.v)));persist();renderBuilder();toast('‘'+p.n+'’ 적용');});
+$('#resetBtn').addEventListener('click',()=>{delete S.vals[cur.id];persist();renderBuilder();toast('이 탭을 초기화했습니다');});
+$('#autoBtn').addEventListener('click',()=>{
+  const t=cur,v=V(t);let n=0;
+  fieldsOf(t).forEach(f=>{ if(f.text||has(v[f.k]))return;
+    const o=optsOf(t,f,v);const top=o.filter(x=>freqOf(x)>0);
+    if(top.length){v[f.k]=f.multi?top.slice(0,3):top[0];n++;}
+  });
+  persist();renderBuilder();
+  toast(n?`기록 기반으로 ${n}개 항목을 채웠습니다`:'히스토리 학습 탭에서 기록을 먼저 분석하세요');
+});
+
+/* ───────────── 프롬프트 조립 ───────────── */
+function mediaBlock(t,v){
+  const L=k=>has(v[k])?(Array.isArray(v[k])?v[k].map(en).join(', '):en(v[k])):'';
+  if(t.id==='photo'){
+    const base=[L('subject'),L('style'),L('comp'),L('light'),L('lens'),L('color')].filter(Boolean).join(', ');
+    if(!base)return null;const neg=L('neg'),tool=v.tool||'';
+    let s;
+    if(tool==='Midjourney')s=`${base} --ar ${v.ar||'1:1'} --v 7 --style raw${neg?' --no '+neg:''}`;
+    else if(tool.startsWith('Stable'))s=`${base}, highly detailed, sharp focus\nNegative prompt: ${neg||'lowres, blurry'}`;
+    else s=`${base}. Aspect ratio ${v.ar||'1:1'}.${neg?' Avoid: '+neg+'.':''}`;
+    return ['영문 생성 프롬프트',s];
+  }
+  if(t.id==='video'){
+    if(!has(v.subject))return null;
+    const secs=String(v.dur||'').replace('초','s');
+    const s=[`${L('style')||'cinematic'} video. ${L('shot')||'shot'} of ${L('subject')}, ${L('move')||'static camera'}.`,
+      L('light')&&`Lighting: ${L('light')}.`, L('mood')&&`Mood: ${L('mood')}.`, L('fps')&&`${L('fps')}.`,
+      `Duration ${secs||'10s'}, aspect ratio ${v.ar||'16:9'}. No text overlays, no logos.`].filter(Boolean).join(' ');
+    return ['영문 생성 프롬프트 (컷 1 기준)',s];
+  }
+  if(t.id==='voice'){
+    if(!has(v.voice))return null;const tool=v.tool||'';
+    const s=(tool==='Suno'||tool==='Udio')
+      ?`Style: ${L('voice')}, ${L('emotion')}, ${L('speed')}. Language: ${v.lang||'Korean'}. Length about ${String(v.len||'').replace('초',' seconds').replace('분',' minutes')}.`
+      :`Voice: ${L('voice')}. Emotion: ${L('emotion')}. Pace: ${L('speed')}. Language: ${v.lang||'Korean'}.`;
+    return ['생성 도구 설정 (영문)',s];
+  }
+  return null;
+}
+function generate(){
+  const t=cur,v=V(t),F=fieldsOf(t);
+  const g=(k,fb)=>{const x=v[k];if(!has(x))return fb||`[${(F.find(f=>f.k===k)||{}).l||k}]`;return Array.isArray(x)?x.map(lab).join(', '):lab(x);};
+  const sec=[];
+  sec.push(['역할',`당신은 ${t.role}입니다.`]);
+  sec.push(['목표',t.goal(g)]);
+  const skip=new Set(['sub','out','ai','mode','fmt','detail','ctx']);
+  const det=F.filter(f=>!skip.has(f.k)&&has(v[f.k])).map(f=>`- ${f.l}: ${g(f.k)}`);
+  if(det.length)sec.push(['세부 조건',det.join('\n')]);
+  if(has(v.out))sec.push(['산출물',`${g('out')} 형식으로 결과를 만든다.`]);
+  const mb=mediaBlock(t,v);if(mb)sec.push(mb);
+  if(has(v.ctx))sec.push(['추가 맥락',v.ctx.trim()]);
+  const rules=[...t.rules,...S.rules.filter(r=>r.on).map(r=>r.t)];
+  if(DETAIL_TXT[v.detail])rules.push(DETAIL_TXT[v.detail]);
+  if(v.ai==='Claude Code (VS Code)')rules.push('변경 전 관련 파일을 먼저 읽고, 작업 후 변경 파일 목록과 실행 방법을 요약');
+  sec.push(['규칙',rules.map(r=>'- '+r).join('\n')]);
+  if(has(v.mode))sec.push(['진행 방식',MODE_TXT[v.mode]||v.mode]);
+  const fmt=v.fmt||'마크다운 섹션';let txt;
+  if(fmt.startsWith('XML')){
+    const tag={'역할':'role','목표':'goal','세부 조건':'conditions','산출물':'output','추가 맥락':'context','규칙':'rules','진행 방식':'process'};
+    txt=sec.map(([h,b])=>{const k=tag[h]||'generation_prompt';return `<${k}>\n${b}\n</${k}>`;}).join('\n\n');
+  }else if(fmt.startsWith('한 문단')){
+    txt=sec.map(([h,b])=>h.includes('영문')||h.includes('설정')?`\n\n[${h}]\n${b}\n`:b.replace(/^- /gm,'').replace(/\n/g,', ')).join(' ').replace(/ \n/g,'\n').trim();
+  }else{
+    txt=sec.map(([h,b])=>`## ${h}\n${b}`).join('\n\n');
+  }
+  $('#out').value=txt;
+  $('#chars').textContent=txt.length.toLocaleString()+'자';
+  const req=F.filter(f=>!f.opt),done=req.filter(f=>has(v[f.k])).length;
+  $('#prog').textContent=`${done} / ${req.length} 필수 단계`;
+  $('#meter').style.width=(req.length?done/req.length*100:0)+'%';
+}
+$('#regenBtn').addEventListener('click',generate);
+$('#copyBtn').addEventListener('click',()=>{
+  const ta=$('#out');
+  const fall=()=>{ta.focus();ta.select();try{document.execCommand('copy');toast('복사했습니다');}catch(e){toast('선택된 글을 Ctrl+C로 복사하세요');}};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(ta.value).then(()=>toast('복사했습니다'),fall);else fall();
+});
+$('#saveBtn').addEventListener('click',()=>{
+  const v=V(cur);S.vault.unshift({id:Date.now(),tab:cur.id,title:`${cur.name} · ${lab(v.sub||'제목 없음')}`,text:$('#out').value,vals:JSON.parse(JSON.stringify(v)),at:new Date().toLocaleString('ko-KR')});
+  S.vault=S.vault.slice(0,200);persist();toast('보관함에 저장했습니다');
+});
+
+/* ───────────── 히스토리 학습 ───────────── */
+function textOf(n){
+  if(n==null)return '';
+  if(typeof n==='string')return n;
+  if(Array.isArray(n))return n.map(textOf).filter(Boolean).join('\n');
+  if(typeof n==='object'){
+    if(n.type==='tool_result'||n.type==='tool_use'||n.type==='image')return '';
+    if(typeof n.text==='string')return n.text;
+    if(n.parts)return textOf(n.parts);
+    if(n.content)return textOf(n.content);
+  }
+  return '';
+}
+function collectUser(root,out){
+  const walk=n=>{
+    if(!n||typeof n!=='object')return;
+    if(Array.isArray(n)){n.forEach(walk);return;}
+    const role=n.role||n.sender||(n.author&&n.author.role)||n.type;
+    if(role==='user'||role==='human'){const s=textOf(n.content!=null?n.content:(n.text!=null?n.text:(n.message!=null?n.message:n.parts)));if(s)out.push(s);}
+    if(n.message&&typeof n.message.text==='string'&&('response' in n))out.push(n.message.text); // VS Code Copilot
+    if(n.header==='Gemini Apps'&&typeof n.title==='string')out.push(n.title.replace(/^Prompted\s*/,'')); // Google Takeout
+    for(const k in n){const c=n[k];if(c&&typeof c==='object')walk(c);}
+  };
+  walk(root);
+}
+function parseText(raw){
+  const out=[];const s=raw.trim();if(!s)return out;
+  try{collectUser(JSON.parse(s),out);if(out.length)return out;}catch(e){}
+  const lines=s.split(/\r?\n/);let jl=0;
+  for(const ln of lines){const l=ln.trim();if(!l.startsWith('{'))continue;try{collectUser(JSON.parse(l),out);jl++;}catch(e){}}
+  if(jl)return out;
+  return s.split(/\n{2,}|\r?\n(?=\S)/).map(x=>x.trim()).filter(x=>x.length>3);
+}
+function clean(m){return m.replace(/<([a-z_-]+)[^>]*>[\s\S]*?<\/\1>/gi,' ').replace(/```[\s\S]*?```/g,' ').replace(/\s+/g,' ').trim().slice(0,4000);}
+function dictTerms(){
+  const d=new Map();
+  const add=(term,key,tab)=>{term=term.trim();if(term.length<2||/^\d/.test(term))return;if(!d.has(term))d.set(term,{key,tabs:new Set()});d.get(term).tabs.add(tab);};
+  TABS.forEach(t=>t.fields.forEach(f=>{
+    const o=Array.isArray(f.o)?f.o:Object.values(f.o||{}).flat();
+    o.forEach(x=>{const k=lab(x);add(k,k,t.id);const core=k.split(/[(（:]/)[0].trim();if(core!==k)add(core,k,t.id);
+      const inner=(k.match(/\(([^)]+)\)/)||[])[1];if(inner&&/[A-Za-z]/.test(inner))add(inner,k,t.id);
+      if(x.includes(' | '))add(en(x),k,t.id);});
+  }));
+  return d;
+}
+const PAT=/(해\s?줘|해\s?주세요|하세요|할 것|하지\s?마|하지 말|금지|반드시|항상|꼭|말고|으?로 해|만들어|작성해|정리해|번역해|추가해|바꿔|넣어|빼줘|맞춰)/;
+function analyze(msgs){
+  msgs=[...new Set(msgs.map(clean).filter(m=>m.length>1))];
+  const D=dictTerms(),freq={},tabScore={};
+  const low=msgs.join('\n').toLowerCase();
+  D.forEach((info,term)=>{
+    const t=term.toLowerCase();let c=0,i=0;
+    while((i=low.indexOf(t,i))!==-1){c++;i+=t.length;}
+    if(c){freq[info.key]=(freq[info.key]||0)+c;info.tabs.forEach(tb=>tabScore[tb]=(tabScore[tb]||0)+c);}
+  });
+  const cnt={};
+  msgs.forEach(m=>m.split(/(?<=[.!?。])\s+|\s*\d+\.\s+|\s*[-•]\s+/).forEach(s=>{
+    s=s.trim().replace(/^[\d.)\s]+/,'');if(s.length<6||s.length>140||!PAT.test(s))return;
+    const key=s.replace(/[.!?~]+$/,'');cnt[key]=(cnt[key]||0)+1;}));
+  const pats=Object.entries(cnt).sort((a,b)=>b[1]-a[1]||a[0].length-b[0].length).slice(0,40).map(([t,c])=>({t,c}));
+  S.freq=freq;S.pats=pats;S.anaInfo={msgs:msgs.length,at:new Date().toLocaleString('ko-KR'),tabScore};
+  persist();renderHistory();
+  toast(`메시지 ${msgs.length}건을 분석했습니다`);
+}
+async function readFiles(files){
+  let all=[];
+  for(const f of files){const txt=await f.text();all=all.concat(parseText(txt));}
+  return all;
+}
+$('#fileIn').addEventListener('change',async e=>{const m=await readFiles(e.target.files);analyze(m.concat(parseText($('#pasteIn').value)));e.target.value='';});
+const drop=$('#drop');
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',async e=>{const m=await readFiles(e.dataTransfer.files);analyze(m);});
+$('#analyzeBtn').addEventListener('click',()=>{const m=parseText($('#pasteIn').value);if(!m.length){toast('붙여 넣은 내용이 없습니다');return;}analyze(m);});
+$('#clearFreqBtn').addEventListener('click',()=>{S.freq={};S.pats=[];S.anaInfo=null;persist();renderHistory();toast('학습 결과를 지웠습니다');});
+function renderHistory(){
+  const a=S.anaInfo;
+  if(a){
+    const ts=Object.entries(a.tabScore||{}).sort((x,y)=>y[1]-x[1]);const mx=ts.length?ts[0][1]:1;
+    $('#anaSummary').className='';
+    $('#anaSummary').innerHTML=`<h3>분석 결과 · 메시지 ${a.msgs.toLocaleString()}건 · ${esc(a.at)}</h3>`+
+      (ts.length?ts.map(([id,c])=>{const t=TABS.find(x=>x.id===id);return `<div class="kv"><a href="#${id}" style="color:inherit">${t.name}</a><div class="bar" style="width:${Math.max(4,c/mx*100)}%"></div><span class="cnt">${c}</span></div>`;}).join('')+'<p class="role" style="margin-top:6px">많이 다룬 분야 순서입니다. 이름을 누르면 해당 탭으로 이동합니다.</p>':'<p class="empty">사전 용어와 일치하는 단어가 없었습니다.</p>');
+  }else{$('#anaSummary').className='empty';$('#anaSummary').textContent='아직 분석한 기록이 없습니다.';}
+  $('#ruleList').innerHTML=S.rules.map((r,i)=>`<li><input type="checkbox" id="rule-${i}" data-ri="${i}" ${r.on?'checked':''}><label class="t" for="rule-${i}">${esc(r.t)}</label><button class="btn sm ghost" type="button" data-rd="${i}">삭제</button></li>`).join('')||'<li class="empty">규칙이 없습니다.</li>';
+  $('#patList').innerHTML=S.pats.length?S.pats.map((p,i)=>`<li><span class="cnt">${p.c}회</span><span class="t">${esc(p.t)}</span><button class="btn sm" type="button" data-pa="${i}">규칙으로</button></li>`).join(''):'<li class="empty">분석 후 표시됩니다. ‘규칙으로’를 누르면 위 목록에 들어갑니다.</li>';
+  const fr=Object.entries(S.freq).sort((a,b)=>b[1]-a[1]).slice(0,24);const mx=fr.length?fr[0][1]:1;
+  $('#termList').className=fr.length?'':'empty';
+  $('#termList').innerHTML=fr.length?fr.map(([k,c])=>`<div class="kv"><span class="t"><span class="star">★</span> ${esc(k)}</span><div class="bar" style="width:${Math.max(4,c/mx*100)}%"></div><span class="cnt">${c}</span></div>`).join(''):'분석 후 표시됩니다. 자주 쓴 선택지는 드랍다운 맨 위에 ★로 올라옵니다.';
+}
+$('#ruleList').addEventListener('change',e=>{const i=e.target.dataset.ri;if(i==null)return;S.rules[i].on=e.target.checked;persist();});
+$('#ruleList').addEventListener('click',e=>{const b=e.target.closest('[data-rd]');if(!b)return;S.rules.splice(+b.dataset.rd,1);persist();renderHistory();});
+$('#ruleAdd').addEventListener('click',()=>{const v=$('#ruleIn').value.trim();if(!v)return;S.rules.push({t:v,on:true});$('#ruleIn').value='';persist();renderHistory();});
+$('#ruleIn').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('#ruleAdd').click();}});
+$('#patList').addEventListener('click',e=>{const b=e.target.closest('[data-pa]');if(!b)return;const p=S.pats[+b.dataset.pa];
+  if(!S.rules.some(r=>r.t===p.t))S.rules.push({t:p.t,on:true});persist();renderHistory();toast('규칙에 추가했습니다');});
+
+/* ───────────── 보관함 ───────────── */
+function renderVault(){
+  $('#vaultCount').textContent=S.vault.length+'개 저장됨';
+  $('#vaultList').innerHTML=S.vault.length?S.vault.map((x,i)=>`<li><div class="t"><b>${esc(x.title)}</b><div class="role">${esc(x.at)} · ${x.text.length.toLocaleString()}자</div></div><button class="btn sm" type="button" data-vc="${i}">복사</button><button class="btn sm" type="button" data-vl="${i}">불러오기</button><button class="btn sm ghost" type="button" data-vd="${i}">삭제</button></li>`).join(''):'<li class="empty">아직 저장한 프롬프트가 없습니다. 빌더에서 ‘보관함에 저장’을 누르세요.</li>';
+}
+$('#vaultList').addEventListener('click',e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(b.dataset.vc!=null){const x=S.vault[+b.dataset.vc];(navigator.clipboard?navigator.clipboard.writeText(x.text):Promise.reject()).then(()=>toast('복사했습니다'),()=>{$('#backup').value=x.text;$('#backup').select();toast('오른쪽 칸에서 Ctrl+C로 복사하세요');});}
+  if(b.dataset.vl!=null){const x=S.vault[+b.dataset.vl];S.vals[x.tab]=JSON.parse(JSON.stringify(x.vals));persist();location.hash=x.tab;toast('불러왔습니다');}
+  if(b.dataset.vd!=null){S.vault.splice(+b.dataset.vd,1);persist();renderVault();}
+});
+$('#exportBtn').addEventListener('click',()=>{$('#backup').value=JSON.stringify(S);$('#backup').select();toast('내용을 복사해 보관하세요');});
+$('#importBtn').addEventListener('click',()=>{try{const o=JSON.parse($('#backup').value);if(typeof o!=='object'||!o)throw 0;S=Object.assign(S,o);persist();toast('설정을 불러왔습니다');renderVault();}catch(e){toast('형식이 올바르지 않습니다. 내보낸 내용을 그대로 붙여 넣으세요');}});
+
+/* ───────────── 테마 ───────────── */
+$('#themeBtn').addEventListener('click',()=>{
+  const r=document.documentElement;const dark=r.dataset.theme?r.dataset.theme==='dark':matchMedia('(prefers-color-scheme: dark)').matches;
+  r.dataset.theme=dark?'light':'dark';try{localStorage.setItem(KEY+'.theme',r.dataset.theme);}catch(e){}
+});
+try{const th=localStorage.getItem(KEY+'.theme');if(th)document.documentElement.dataset.theme=th;}catch(e){}
+
+/* 첫 화면 예시: 처음 방문이면 '생산' 탭에 예시 프리셋을 채워 둠 */
+if(!Object.keys(S.vals).length){const p=TABS[1].presets[0];S.vals.prod=Object.assign({mode:'질문 → 계획 수립 → 승인 후 실행',fmt:'마크다운 섹션',detail:'표준'},JSON.parse(JSON.stringify(p.v)));if(!location.hash)cur=TABS[1];}
+route();
+</script>
+
+</body>
+</html>
